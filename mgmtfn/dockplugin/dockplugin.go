@@ -31,6 +31,7 @@ import (
 	"github.com/contiv/netplugin/netplugin/plugin"
 	"github.com/contiv/netplugin/svcplugin"
 	"github.com/contiv/netplugin/svcplugin/bridge"
+	"github.com/docker/docker/pkg/authorization"
 	"github.com/docker/docker/pkg/plugins"
 	"github.com/docker/libnetwork/drivers/remote/api"
 	"github.com/gorilla/mux"
@@ -72,6 +73,8 @@ func InitDockPlugin(netplugin *plugin.NetPlugin) error {
 		"/IpamDriver.ReleasePool":             releasePool,
 		"/IpamDriver.RequestAddress":          requestAddress,
 		"/IpamDriver.ReleaseAddress":          releaseAddress,
+		"/" + authorization.AuthZApiRequest:   authReq,
+		"/" + authorization.AuthZApiResponse:  authResp,
 	}
 
 	for dispatchPath, dispatchFunc := range dispatchMap {
@@ -142,9 +145,9 @@ func logEvent(typ string) {
 	log.Infof("Handling %q event", typ)
 }
 
-// Catchall for additional driver functions.
+// Catchall for additional plugin functions.
 func unknownAction(w http.ResponseWriter, r *http.Request) {
-	log.Infof("Unknown networkdriver action at %q", r.URL.Path)
+	log.Infof("Unknown plugin action at %q", r.URL.Path)
 	content, _ := ioutil.ReadAll(r.Body)
 	log.Infof("Body content: %s", string(content))
 	w.WriteHeader(503)
@@ -162,7 +165,7 @@ func activate(hostname string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logEvent("activate")
 
-		content, err := json.Marshal(plugins.Manifest{Implements: []string{"NetworkDriver", "IpamDriver"}})
+		content, err := json.Marshal(plugins.Manifest{Implements: []string{"NetworkDriver", "IpamDriver", authorization.AuthZApiImplements}})
 		if err != nil {
 			httpError(w, "Could not generate bootstrap response", err)
 			return
