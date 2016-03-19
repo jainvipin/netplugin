@@ -28,7 +28,6 @@ import (
 	"github.com/contiv/ofnet"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -155,87 +154,12 @@ func (sw *OvsSwitch) DeleteNetwork(pktTag uint16, extPktTag uint32, gateway stri
 	return nil
 }
 
-// createVethPair creates veth interface pairs with specified name
-func createVethPair(name1, name2 string) error {
-	log.Infof("Creating Veth pairs with name: %s, %s", name1, name2)
-
-	// Veth pair params
-	veth := &netlink.Veth{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:   name1,
-			TxQLen: 0,
-		},
-		PeerName: name2,
-	}
-
-	// Create the veth pair
-	if err := netlink.LinkAdd(veth); err != nil {
-		log.Errorf("error creating veth pair: %v", err)
-		return err
-	}
-
-	return nil
-}
-
-// deleteVethPair deletes veth interface pairs
-func deleteVethPair(name1, name2 string) error {
-	log.Infof("Deleting Veth pairs with name: %s, %s", name1, name2)
-
-	// Veth pair params
-	veth := &netlink.Veth{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:   name1,
-			TxQLen: 0,
-		},
-		PeerName: name2,
-	}
-
-	// Create the veth pair
-	if err := netlink.LinkDel(veth); err != nil {
-		log.Errorf("error deleting veth pair: %v", err)
-		return err
-	}
-
-	return nil
-}
-
-// setLinkUp sets the link up
-func setLinkUp(name string) error {
-	iface, err := netlink.LinkByName(name)
-	if err != nil {
-		return err
-	}
-	return netlink.LinkSetUp(iface)
-}
-
-// Set the link mtu
-func setLinkMtu(name string, mtu int) error {
-	iface, err := netlink.LinkByName(name)
-	if err != nil {
-		return err
-	}
-	return netlink.LinkSetMTU(iface, mtu)
-}
-
-// getOvsPostName returns OVS port name depending on if we use Veth pairs
-func getOvsPostName(intfName string) string {
-	var ovsPortName string
-
-	if useVethPair {
-		ovsPortName = strings.Replace(intfName, "port", "vport", 1)
-	} else {
-		ovsPortName = intfName
-	}
-
-	return ovsPortName
-}
-
 // CreatePort creates a port in ovs switch
 func (sw *OvsSwitch) CreatePort(intfName string, cfgEp *mastercfg.CfgEndpointState, pktTag, nwPktTag int) error {
 	var ovsIntfType string
 
 	// Get OVS port name
-	ovsPortName := getOvsPostName(intfName)
+	ovsPortName := getExtPortName(intfName)
 
 	// Create Veth pairs if required
 	if useVethPair {
@@ -322,7 +246,7 @@ func (sw *OvsSwitch) CreatePort(intfName string, cfgEp *mastercfg.CfgEndpointSta
 // UpdatePort updates an OVS port without creating it
 func (sw *OvsSwitch) UpdatePort(intfName string, cfgEp *mastercfg.CfgEndpointState, pktTag int) error {
 	// Get OVS port name
-	ovsPortName := getOvsPostName(intfName)
+	ovsPortName := getExtPortName(intfName)
 
 	// Add the endpoint to ofnet
 	// Get the openflow port number for the interface
@@ -364,7 +288,7 @@ func (sw *OvsSwitch) DeletePort(epOper *OvsOperEndpointState) error {
 	}
 
 	// Get the OVS port name
-	ovsPortName := getOvsPostName(epOper.PortName)
+	ovsPortName := getExtPortName(epOper.PortName)
 	if !useVethPair {
 		ovsPortName = epOper.PortName
 	}
